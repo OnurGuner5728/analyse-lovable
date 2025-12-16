@@ -18,23 +18,95 @@ export interface Player {
   cards_yellow?: string | number;
   cards_red?: string | number;
   minutes?: string | number;
+  games?: string | number;
 }
 
-export interface TeamData {
-  teamName?: string;
+export interface TeamInfo {
+  stats?: { keeperCount: number; playerCount: number; fixtureCount: number };
   league?: string;
-  points?: number;
+  points?: string | number;
+  teamId?: string;
+  keepers?: Player[];
   manager?: string;
-  recentMatches?: Match[];
   players?: Player[];
-  h2h?: H2HData;
+  teamName?: string;
+  recentMatches?: Match[];
+}
+
+export interface H2HMatch {
+  date: string;
+  score: string;
+  venue: string;
+  awayTeam: string;
+  homeTeam: string;
+  competition: string;
 }
 
 export interface H2HData {
-  team1?: { wins?: number; draws?: number };
-  team2?: { wins?: number; draws?: number };
-  matches?: Match[];
+  team1?: { name?: string; wins?: number; draws?: number; goals?: number; losses?: number };
+  team2?: { name?: string; wins?: number; draws?: number; goals?: number; losses?: number };
+  matches?: H2HMatch[];
+  scrapedAt?: string;
+  hasHistory?: boolean;
+  totalGames?: number;
 }
+
+export interface MatchRecord {
+  h2h?: H2HData;
+  homeTeam?: TeamInfo;
+  awayTeam?: TeamInfo;
+}
+
+export interface DatabaseRecord {
+  id: number;
+  team_url: string;
+  data: string | MatchRecord;
+  updated_at: string;
+}
+
+export interface ParsedMatchRecord {
+  id: number;
+  team_url: string;
+  data: MatchRecord;
+  updated_at: string;
+  homeTeamName: string;
+  awayTeamName: string;
+}
+
+// Helper to parse data field (can be string or object)
+export const parseMatchData = (record: DatabaseRecord): ParsedMatchRecord | null => {
+  if (!record?.data) return null;
+  
+  let parsed: MatchRecord;
+  if (typeof record.data === 'string') {
+    try {
+      parsed = JSON.parse(record.data) as MatchRecord;
+    } catch {
+      return null;
+    }
+  } else {
+    parsed = record.data;
+  }
+
+  // Extract team names from h2h or team objects
+  const homeTeamName = parsed.h2h?.matches?.[0]?.homeTeam || 
+                       parsed.homeTeam?.teamName || 
+                       parsed.h2h?.team1?.name || 
+                       'Home Team';
+  const awayTeamName = parsed.h2h?.matches?.[0]?.awayTeam || 
+                       parsed.awayTeam?.teamName || 
+                       parsed.h2h?.team2?.name || 
+                       'Away Team';
+
+  return {
+    id: record.id,
+    team_url: record.team_url,
+    data: parsed,
+    updated_at: record.updated_at,
+    homeTeamName,
+    awayTeamName,
+  };
+};
 
 export interface VenueStats {
   matches: number;
@@ -99,8 +171,39 @@ export const parseNum = (val: unknown): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
-export const calculateTeamStats = (team: TeamData | null, competition = 'all'): TeamStats | null => {
-  if (!team?.recentMatches) return null;
+export const calculateTeamStats = (team: TeamInfo | null | undefined, competition = 'all'): TeamStats | null => {
+  if (!team?.recentMatches || team.recentMatches.length === 0) {
+    // If no recentMatches, try to create basic stats from players data
+    if (!team?.players || team.players.length === 0) return null;
+    
+    // Create minimal stats from player data
+    const totalGames = parseNum(team.stats?.fixtureCount) || 1;
+    const totalGoals = team.players.reduce((sum, p) => sum + parseNum(p.goals), 0);
+    
+    return {
+      total: { matches: totalGames, wins: 0, draws: 0, losses: 0, gf: totalGoals, ga: 0 },
+      home: { matches: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 },
+      away: { matches: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 },
+      form: { last5: [], last10: [], points: 0 },
+      cleanSheets: 0,
+      failedToScore: 0,
+      btts: 0,
+      over15: 0,
+      over25: 0,
+      over35: 0,
+      currentStreak: { type: null, count: 0 },
+      formations: {},
+      avgGoalsFor: (totalGoals / totalGames).toFixed(2),
+      avgGoalsAgainst: '0.00',
+      ppg: parseNum(team.points) ? (parseNum(team.points) / totalGames).toFixed(2) : '0.00',
+      homePPG: '0.00',
+      awayPPG: '0.00',
+      cleanSheetPct: '0.0',
+      failedToScorePct: '0.0',
+      bttsPct: '0.0',
+      over25Pct: '0.0',
+    };
+  }
   
   let matches = team.recentMatches.filter(m => m.result);
   if (competition !== 'all') {
@@ -225,14 +328,40 @@ export const getCardRisks = (players: Player[] | undefined): Player[] => {
 };
 
 export const calculatePrediction = (
-  homeStats: TeamStats,
-  awayStats: TeamStats,
+  homeStats: TeamStats | null,
+  awayStats: TeamStats | null,
   h2hStats?: H2HData
 ): Prediction | null => {
-  if (!homeStats || !awayStats) return null;
+  // Create default stats if missing
+  const defaultStats: TeamStats = {
+    total: { matches: 1, wins: 0, draws: 0, losses: 0, gf: 1, ga: 1 },
+    home: { matches: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 },
+    away: { matches: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 },
+    form: { last5: [], last10: [], points: 7 },
+    cleanSheets: 0,
+    failedToScore: 0,
+    btts: 0,
+    over15: 0,
+    over25: 0,
+    over35: 0,
+    currentStreak: { type: 'D', count: 1 },
+    formations: {},
+    avgGoalsFor: '1.00',
+    avgGoalsAgainst: '1.00',
+    ppg: '1.50',
+    homePPG: '1.50',
+    awayPPG: '1.50',
+    cleanSheetPct: '30.0',
+    failedToScorePct: '20.0',
+    bttsPct: '50.0',
+    over25Pct: '50.0',
+  };
 
-  const homeFormScore = (homeStats.form.points / 15) * 100;
-  const awayFormScore = (awayStats.form.points / 15) * 100;
+  const hStats = homeStats || defaultStats;
+  const aStats = awayStats || defaultStats;
+
+  const homeFormScore = (hStats.form.points / 15) * 100;
+  const awayFormScore = (aStats.form.points / 15) * 100;
 
   let homeH2HScore = 50, awayH2HScore = 50;
   if (h2hStats && h2hStats.team1 && h2hStats.team2) {
@@ -243,17 +372,17 @@ export const calculatePrediction = (
     }
   }
 
-  const homeVenueScore = Math.min((parseFloat(homeStats.homePPG) / 3) * 100, 100);
-  const awayVenueScore = Math.min((parseFloat(awayStats.awayPPG) / 3) * 100, 100);
-  const homeGoalDiff = homeStats.total.gf - homeStats.total.ga;
-  const awayGoalDiff = awayStats.total.gf - awayStats.total.ga;
+  const homeVenueScore = Math.min((parseFloat(hStats.homePPG) / 3) * 100, 100);
+  const awayVenueScore = Math.min((parseFloat(aStats.awayPPG) / 3) * 100, 100);
+  const homeGoalDiff = hStats.total.gf - hStats.total.ga;
+  const awayGoalDiff = aStats.total.gf - aStats.total.ga;
   const homeGoalScore = Math.max(0, Math.min(100, 50 + homeGoalDiff * 3));
   const awayGoalScore = Math.max(0, Math.min(100, 50 + awayGoalDiff * 3));
 
   const homeFinal = homeFormScore * 0.30 + homeH2HScore * 0.20 + homeVenueScore * 0.25 + homeGoalScore * 0.15 +
-    (homeStats.currentStreak.type === 'W' ? 70 : homeStats.currentStreak.type === 'L' ? 30 : 50) * 0.10;
+    (hStats.currentStreak.type === 'W' ? 70 : hStats.currentStreak.type === 'L' ? 30 : 50) * 0.10;
   const awayFinal = awayFormScore * 0.30 + awayH2HScore * 0.20 + awayVenueScore * 0.25 + awayGoalScore * 0.15 +
-    (awayStats.currentStreak.type === 'W' ? 70 : awayStats.currentStreak.type === 'L' ? 30 : 50) * 0.10;
+    (aStats.currentStreak.type === 'W' ? 70 : aStats.currentStreak.type === 'L' ? 30 : 50) * 0.10;
 
   const drawBase = 18;
   const total = homeFinal + awayFinal + drawBase;
@@ -262,10 +391,10 @@ export const calculatePrediction = (
     homeWinPct: ((homeFinal / total) * 100).toFixed(1),
     awayWinPct: ((awayFinal / total) * 100).toFixed(1),
     drawPct: ((drawBase / total) * 100).toFixed(1),
-    expectedHomeGoals: (parseFloat(homeStats.avgGoalsFor) * (parseFloat(awayStats.avgGoalsAgainst) / 1.5)).toFixed(1),
-    expectedAwayGoals: (parseFloat(awayStats.avgGoalsFor) * (parseFloat(homeStats.avgGoalsAgainst) / 1.5) * 0.85).toFixed(1),
-    bttsPct: ((parseFloat(homeStats.bttsPct) + parseFloat(awayStats.bttsPct)) / 2).toFixed(1),
-    over25Pct: ((parseFloat(homeStats.over25Pct) + parseFloat(awayStats.over25Pct)) / 2).toFixed(1),
+    expectedHomeGoals: (parseFloat(hStats.avgGoalsFor) * (parseFloat(aStats.avgGoalsAgainst) / 1.5)).toFixed(1),
+    expectedAwayGoals: (parseFloat(aStats.avgGoalsFor) * (parseFloat(hStats.avgGoalsAgainst) / 1.5) * 0.85).toFixed(1),
+    bttsPct: ((parseFloat(hStats.bttsPct) + parseFloat(aStats.bttsPct)) / 2).toFixed(1),
+    over25Pct: ((parseFloat(hStats.over25Pct) + parseFloat(aStats.over25Pct)) / 2).toFixed(1),
     confidence: Math.abs(homeFinal - awayFinal) > 20 ? 'high' : Math.abs(homeFinal - awayFinal) > 10 ? 'medium' : 'low',
   };
 };
