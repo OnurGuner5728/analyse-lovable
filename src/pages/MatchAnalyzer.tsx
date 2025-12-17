@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import {
   Database, Search, Eye, BarChart3, Trophy, Target, Shield,
-  Activity, Zap, Newspaper, CheckCircle, XCircle, Loader2, Calendar, MapPin, Filter
+  Activity, Zap, CheckCircle, XCircle, Loader2, Calendar, MapPin, Filter
 } from 'lucide-react';
 import {
   DatabaseRecord, ParsedMatchRecord, TeamInfo, TeamStats, Prediction, NewsItem, H2HData,
@@ -10,10 +10,10 @@ import {
 } from '@/lib/matchAnalyzer';
 import { FormBadge } from '@/components/match/FormBadge';
 import { StatCard } from '@/components/match/StatCard';
-import { NewsCard } from '@/components/match/NewsCard';
 import { LoadingSpinner } from '@/components/match/LoadingSpinner';
 import { H2HChart } from '@/components/match/H2HChart';
 import { PlayerComparison } from '@/components/match/PlayerComparison';
+import { ManagerComparison } from '@/components/match/ManagerComparison';
 import { AIAnalysis } from '@/components/match/AIAnalysis';
 
 const DEFAULT_URL = 'https://tmauayspvhfabrfmnpbi.supabase.co';
@@ -504,6 +504,18 @@ export default function MatchAnalyzer() {
           </div>
         )}
 
+        {/* Manager Comparison */}
+        <ManagerComparison
+          homeManager={homeTeam?.manager}
+          awayManager={awayTeam?.manager}
+          homeTeamName={selectedMatch.homeTeamName}
+          awayTeamName={selectedMatch.awayTeamName}
+          homeLeague={homeTeam?.league}
+          awayLeague={awayTeam?.league}
+          homePoints={homeTeam?.points}
+          awayPoints={awayTeam?.points}
+        />
+
         {/* AI Analysis */}
         <AIAnalysis
           homeTeamName={selectedMatch.homeTeamName}
@@ -512,6 +524,13 @@ export default function MatchAnalyzer() {
           awayStats={awayStats}
           h2h={h2h}
           prediction={prediction}
+          homeManager={homeTeam?.manager}
+          awayManager={awayTeam?.manager}
+          homeLeague={homeTeam?.league}
+          awayLeague={awayTeam?.league}
+          homePlayers={homeTeam?.players}
+          awayPlayers={awayTeam?.players}
+          news={matchNews}
         />
 
         {/* Player Comparison */}
@@ -562,21 +581,9 @@ export default function MatchAnalyzer() {
           </div>
         ) : null}
 
-        {/* News */}
-        {newsLoading ? (
+        {/* News - Now handled by AI Analysis */}
+        {newsLoading && (
           <LoadingSpinner text="Haberler yükleniyor..." />
-        ) : matchNews.length > 0 && (
-          <div className="bg-card rounded-2xl p-6 border border-border">
-            <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-              <Newspaper className="w-5 h-5 text-primary" />
-              Maç Haberleri
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {matchNews.slice(0, 6).map((news, i) => (
-                <NewsCard key={i} news={news} />
-              ))}
-            </div>
-          </div>
         )}
       </div>
     );
