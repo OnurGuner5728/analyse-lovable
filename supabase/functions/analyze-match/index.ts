@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -11,80 +12,70 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OpenAI API key not configured');
+    const { matchContext } = await req.json();
+    
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const { matchContext } = await req.json();
+    const systemPrompt = `Sen profesyonel bir futbol analisti ve bahis uzmanısın. Görevin, verilen maç verilerini derinlemesine analiz ederek SOMUT VE SAYISAL tahminler sunmak.
 
-    const systemPrompt = `Sen dünyaca ünlü bir futbol analisti, bahis uzmanı ve istatistik dehasisın. Verilen tüm verileri derinlemesine analiz edip Türkçe olarak profesyonel bir rapor hazırlayacaksın.
+MUTLAKA UYULMASI GEREKEN KURALLAR:
+1. SADECE sana verilen verilerdeki oyuncu ve teknik direktör isimlerini kullan - HALÜSİNASYON YAPMA
+2. Tüm tahminler SOMUT RAKAMLARLA ve YÜZDE OLASILIKLARLA desteklenmeli
+3. Belirsiz ifadeler ("potansiyel var", "olabilir", "muhtemel") KULLANMA - bunun yerine "%65 ihtimalle", "beklenen değer: 3.2" gibi ifadeler kullan
+4. Her key event (penaltı, kart, korner, şut, frikik) için tahmin edilen SAYI ver
+5. Gol kombinasyonlarını analiz et ve bunları TAHMİNİ SKORA yansıt
 
-ÖNEMLİ KURALLAR:
-- Sadece sana verilen istatistiksel verileri, oyuncu isimlerini ve manager isimlerini kullan
-- Haber başlıklarını yorumla ama içerik uydurmA
-- Halüsinasyon yapma, olmayan veri üretme
-- Her tahmin için mantıksal gerekçe sun
+ANALİZ FORMATI:
 
-RAPORUN BÖLÜMLERİ:
+📊 TAKIM GÜÇ ANALİZİ
+[Ev sahibi ve deplasman takımlarının form, gol atma/yeme oranları, iç saha/dış saha performansı - RAKAMLARLA]
 
-📊 GENEL DEĞERLENDIRME
-- Maçın karakteri ve önemi
-- Lig maçı mı, uluslararası mı? (Uluslararasıysa güç dengesizliğine dikkat et)
+🏆 MÜSABAKA BAĞLAMI
+[Lig maçı ise lig sıralaması ve puan durumu analizi]
+[Uluslararası maç ise takımların uluslararası performans farklılıkları]
+[Takımların bu bağlamdaki güç dengesi değerlendirmesi]
 
-🏠 EV SAHİBİ ANALİZİ
-- Form durumu ve seri
-- Ev sahibi avantajı
-- Güçlü/zayıf yönler
+👥 KADRO VE OYUNCU ANALİZİ
+[Kilit oyuncular ve form durumları - SADECE verideki isimler]
+[Gol kralları karşılaştırması]
+[Asist kralları karşılaştırması]
 
-✈️ DEPLASMAN ANALİZİ  
-- Deplasman performansı
-- Form durumu
-- Güçlü/zayıf yönler
+🎯 KEY EVENT TAHMİNLERİ (SOMUT RAKAMLAR)
+- Toplam Gol Beklentisi: X.XX (ev: X.XX, dep: X.XX)
+- Toplam Şut Beklentisi: XX-XX (isabetli: XX-XX)
+- Korner Beklentisi: XX-XX
+- Sarı Kart Beklentisi: X-X (ev: X, dep: X)
+- Kırmızı Kart Riski: %XX
+- Penaltı İhtimali: %XX
+- Frikik Gol İhtimali: %XX
+- Kendi Kalesine Gol Riski: %XX
 
-👔 MANAGER KARŞILAŞTIRMASI
-- Taktiksel yaklaşımlar
-- Tercih edilen dizilişler
-- Tarihsel başarı
+⚽ GOL DAĞILIMI ANALİZİ
+[Her takım için gol kaynaklarının yüzdesel dağılımı]
+- Açık oyundan: %XX
+- Penaltıdan: %XX
+- Serbest vuruştan: %XX
+- Kornerden: %XX
+- Kendi kalesine: %XX
 
-📈 H2H DEĞERLENDİRMESİ
-- Geçmiş karşılaşma sonuçları (bugünün maçını sayma!)
-- Gol trendleri
-- Psikolojik üstünlük
+🎲 TAHMİNİ SKOR VE OLASILIKLAR
+Ana Tahmin: [SKOR] (%XX olasılık)
+Alternatif 1: [SKOR] (%XX olasılık)
+Alternatif 2: [SKOR] (%XX olasılık)
 
-⚽ SKOR TAHMİNİ
-- Net skor tahmini (örn: 2-1)
-- Alternatif skorlar
-- İlk yarı/ikinci yarı beklentisi
+İlk Yarı Tahmini: [SKOR]
+İlk Gol: [TAKİM] (%XX)
+Her İki Takım Gol Atar: Evet/Hayır (%XX)
+2.5 Üst: Evet/Hayır (%XX)
 
-🎯 GOL KOMBİNASYONLARI
-- Penaltı ihtimali (kart ortalamasına göre)
-- Serbest vuruş golü potansiyeli
-- Korner golü olasılığı
-- Kendi kalesine gol riski
-
-🟨 KART TAHMİNİ
-- Sarı kart beklentisi (her takım için)
-- Kırmızı kart riski
-- En riskli oyuncular (verilmişse)
-
-💰 BAHİS ÖNERİLERİ
-- MS (Maç Sonucu) önerisi
-- Alt/Üst 2.5 önerisi
-- KG (Karşılıklı Gol) önerisi
-- Handikap önerisi (gerekirse)
-- Korner bahisi (tahmini)
+📈 BAHİS ÖNERİLERİ
+[En değerli 3 bahis önerisi - her biri için beklenen değer hesabı]
 
 ⚠️ RİSK FAKTÖRLERİ
-- Sürpriz potansiyeli
-- Sakatlık/ceza riskleri (verilmişse)
-- Motivasyon farkları
-
-📰 HABER DEĞERLENDİRMESİ (varsa)
-- Verilen haber başlıklarından çıkarımlar
-- Maça etki edebilecek faktörler
-
-Her bölümü kısa ve öz tut (2-4 cümle). Profesyonel ve güvenilir bir dil kullan.`;
+[Maç sonucunu etkileyebilecek kritik faktörler]`;
 
     // Build comprehensive user prompt
     let userPrompt = `ŞU MAÇI ANALİZ ET:
@@ -197,35 +188,58 @@ ${matchContext.newsHeadlines.map((n: any, i: number) => `${i + 1}. "${n.title}" 
 `;
     }
 
-    console.log('Calling OpenAI API with comprehensive match data...');
+    userPrompt += `
+
+ÖNEMLİ: Tüm tahminleri SOMUT RAKAMLARLA ver. "Olabilir", "potansiyel var" gibi belirsiz ifadeler KULLANMA. Her key event için beklenen değer hesapla ve bunları final skor tahminine yansıt.`;
+
+    console.log('Calling Lovable AI Gateway...');
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.7,
-        max_tokens: 2000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error('Lovable AI Gateway error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ 
+          error: 'Rate limit exceeded. Please try again later.',
+          analysis: null 
+        }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ 
+          error: 'AI credits exhausted. Please add credits to continue.',
+          analysis: null 
+        }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      throw new Error(`AI Gateway error: ${response.status}`);
     }
 
     const data = await response.json();
     const analysis = data.choices?.[0]?.message?.content || 'Analiz oluşturulamadı';
 
-    console.log('Comprehensive analysis generated successfully');
+    console.log('Analysis generated successfully');
 
     return new Response(JSON.stringify({ analysis }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
