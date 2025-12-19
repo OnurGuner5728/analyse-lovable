@@ -15,6 +15,14 @@ import { H2HChart } from '@/components/match/H2HChart';
 import { PlayerComparison } from '@/components/match/PlayerComparison';
 import { ManagerComparison } from '@/components/match/ManagerComparison';
 import { AIAnalysis } from '@/components/match/AIAnalysis';
+import { PoissonPrediction } from '@/components/match/PoissonPrediction';
+import { TeamRadarChart } from '@/components/match/TeamRadarChart';
+import { KeyEventsPredictor } from '@/components/match/KeyEventsPredictor';
+import { ConfidenceIndicator } from '@/components/match/ConfidenceIndicator';
+import { FormTrendChart } from '@/components/match/FormTrendChart';
+import { ExportReport } from '@/components/match/ExportReport';
+import { LiveNewsFeed } from '@/components/match/LiveNewsFeed';
+import { MatchSummaryCard } from '@/components/match/MatchSummaryCard';
 
 const DEFAULT_URL = 'https://tmauayspvhfabrfmnpbi.supabase.co';
 const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtYXVheXNwdmhmYWJyZm1ucGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5NTcxMTcsImV4cCI6MjA4MDUzMzExN30.XZwbAaNRznFN4lQ5asIv84Shu5TspczIGRyLgRUSgj4';
@@ -504,6 +512,113 @@ export default function MatchAnalyzer() {
           </div>
         )}
 
+        {/* Match Summary Card */}
+        {prediction && homeStats && awayStats && (
+          <MatchSummaryCard
+            homeTeam={selectedMatch.homeTeamName}
+            awayTeam={selectedMatch.awayTeamName}
+            prediction={{
+              homeWinPct: parseFloat(prediction.homeWinPct),
+              drawPct: parseFloat(prediction.drawPct),
+              awayWinPct: parseFloat(prediction.awayWinPct),
+              expectedScore: `${prediction.expectedHomeGoals}-${prediction.expectedAwayGoals}`,
+              bttsPct: parseFloat(prediction.bttsPct),
+              over25Pct: parseFloat(prediction.over25Pct),
+              confidence: prediction.confidence,
+            }}
+            homeStats={{
+              ppg: parseFloat(homeStats.ppg),
+              avgGoalsFor: parseFloat(homeStats.avgGoalsFor),
+              avgGoalsAgainst: parseFloat(homeStats.avgGoalsAgainst),
+              form: { points: homeStats.form.points },
+            }}
+            awayStats={{
+              ppg: parseFloat(awayStats.ppg),
+              avgGoalsFor: parseFloat(awayStats.avgGoalsFor),
+              avgGoalsAgainst: parseFloat(awayStats.avgGoalsAgainst),
+              form: { points: awayStats.form.points },
+            }}
+          />
+        )}
+
+        {/* Poisson Statistical Prediction */}
+        {homeStats && awayStats && (
+          <PoissonPrediction
+            homeExpectedGoals={parseFloat(homeStats.avgGoalsFor)}
+            awayExpectedGoals={parseFloat(awayStats.avgGoalsFor)}
+            homeTeam={selectedMatch.homeTeamName}
+            awayTeam={selectedMatch.awayTeamName}
+          />
+        )}
+
+        {/* Key Events Predictor */}
+        {homeStats && awayStats && (
+          <KeyEventsPredictor
+            homeStats={{
+              avgGoalsFor: parseFloat(homeStats.avgGoalsFor),
+              avgGoalsAgainst: parseFloat(homeStats.avgGoalsAgainst),
+              bttsPct: parseFloat(homeStats.bttsPct),
+              over25Pct: parseFloat(homeStats.over25Pct),
+              ppg: parseFloat(homeStats.ppg),
+            }}
+            awayStats={{
+              avgGoalsFor: parseFloat(awayStats.avgGoalsFor),
+              avgGoalsAgainst: parseFloat(awayStats.avgGoalsAgainst),
+              bttsPct: parseFloat(awayStats.bttsPct),
+              over25Pct: parseFloat(awayStats.over25Pct),
+              ppg: parseFloat(awayStats.ppg),
+            }}
+            homeTeam={selectedMatch.homeTeamName}
+            awayTeam={selectedMatch.awayTeamName}
+          />
+        )}
+
+        {/* Confidence Indicator */}
+        {prediction && homeStats && awayStats && (
+          <ConfidenceIndicator
+            homeWinProb={parseFloat(prediction.homeWinPct)}
+            drawProb={parseFloat(prediction.drawPct)}
+            awayWinProb={parseFloat(prediction.awayWinPct)}
+            dataQuality={Math.min(100, (homeStats.total.matches + awayStats.total.matches) * 5)}
+            h2hGames={h2h?.totalGames || 0}
+            formReliability={Math.min(100, ((homeStats.form.last10.length + awayStats.form.last10.length) / 2) * 10)}
+          />
+        )}
+
+        {/* Team Radar Chart */}
+        {homeStats && awayStats && (
+          <TeamRadarChart
+            homeStats={{
+              ppg: parseFloat(homeStats.ppg),
+              avgGoalsFor: parseFloat(homeStats.avgGoalsFor),
+              avgGoalsAgainst: parseFloat(homeStats.avgGoalsAgainst),
+              cleanSheetPct: parseFloat(homeStats.cleanSheetPct),
+              bttsPct: parseFloat(homeStats.bttsPct),
+              over25Pct: parseFloat(homeStats.over25Pct),
+            }}
+            awayStats={{
+              ppg: parseFloat(awayStats.ppg),
+              avgGoalsFor: parseFloat(awayStats.avgGoalsFor),
+              avgGoalsAgainst: parseFloat(awayStats.avgGoalsAgainst),
+              cleanSheetPct: parseFloat(awayStats.cleanSheetPct),
+              bttsPct: parseFloat(awayStats.bttsPct),
+              over25Pct: parseFloat(awayStats.over25Pct),
+            }}
+            homeTeam={selectedMatch.homeTeamName}
+            awayTeam={selectedMatch.awayTeamName}
+          />
+        )}
+
+        {/* Form Trend Chart */}
+        {(homeStats?.form.last10.length || awayStats?.form.last10.length) ? (
+          <FormTrendChart
+            homeForm={homeStats?.form.last10 || []}
+            awayForm={awayStats?.form.last10 || []}
+            homeTeam={selectedMatch.homeTeamName}
+            awayTeam={selectedMatch.awayTeamName}
+          />
+        ) : null}
+
         {/* Manager Comparison */}
         <ManagerComparison
           homeManager={homeTeam?.manager}
@@ -581,10 +696,32 @@ export default function MatchAnalyzer() {
           </div>
         ) : null}
 
-        {/* News - Now handled by AI Analysis */}
-        {newsLoading && (
-          <LoadingSpinner text="Haberler yükleniyor..." />
-        )}
+        {/* Live News Feed */}
+        <LiveNewsFeed
+          news={matchNews.map(n => ({
+            title: n.title,
+            description: n.snippet || '',
+            link: n.url,
+            pubDate: n.date,
+            source: n.source,
+          }))}
+          loading={newsLoading}
+        />
+
+        {/* Export Report */}
+        <ExportReport
+          matchData={{
+            homeTeam: selectedMatch.homeTeamName,
+            awayTeam: selectedMatch.awayTeamName,
+            league: homeTeam?.league || awayTeam?.league || 'Unknown League',
+          }}
+          prediction={prediction ? {
+            homeWinPct: parseFloat(prediction.homeWinPct),
+            drawPct: parseFloat(prediction.drawPct),
+            awayWinPct: parseFloat(prediction.awayWinPct),
+            expectedScore: `${prediction.expectedHomeGoals}-${prediction.expectedAwayGoals}`,
+          } : undefined}
+        />
       </div>
     );
   };
